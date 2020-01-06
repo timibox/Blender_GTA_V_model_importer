@@ -137,27 +137,51 @@ def load_Mesh(filepath):
     index_header_pattern = re.compile(r"\s+ Indices \s+ (?P<index_count>\d+)", re.VERBOSE)
     index_line_pattern = re.compile(r"\t{4}(?P<indices>(?:\d+[^\.]){1,15})",re.VERBOSE)
     vertex_header_pattern = re.compile(r"\s+ Vertices \s+ (?P<vertex_count>\d+)", re.VERBOSE)
-    vertex_line_pattern_skinned = re.compile(r"""
-    \t{4}
-    (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
-    (?P<weights>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
-    (?P<bone_indices>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
-    (?P<normal>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
-    (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
-    (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) (?:\/\s
-    (?P<undef3>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}))?
-    """, re.VERBOSE)
-    vertex_line_pattern = re.compile(r"""
-    \t{4}
-    (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
-    (?P<normal>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
-    (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
-    (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2})
-    """, re.VERBOSE)
-
     skinned_pattern = re.compile(r"\t+ Skinned \s+ (?P<skinned>True|False)", re.VERBOSE)
     bone_count_pattern = re.compile(r"\t+ BoneCount \s+ (?P<bonecount>\d+)", re.VERBOSE)
-    vertex_line_pattern2 = re.compile(r"\t+(?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/", re.VERBOSE)
+    VertexDeclaration_pattern = re.compile(r"\s+ VertexDeclaration \s+ (?P<vertex_declaration>[^\s]+)", re.VERBOSE)
+
+    # Todo add all VertexDeclarations
+    vertex_line_patterns = {
+        "N209731BE": re.compile(r"""
+            \t{4}
+            (?P<pos>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
+            (?P<normal>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
+            (?P<color>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){4}) \/
+            (?P<uv>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){2})$
+            """, re.VERBOSE),
+        "N51263BB5": re.compile(r"""
+            \t{4}
+            (?P<pos>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
+            (?P<normal>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
+            (?P<color>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){4}) \/
+            (?P<uv>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){2}) \/
+            (?P<undef3>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){4})$
+            """, re.VERBOSE),
+        "S9445853F": re.compile(r"""
+            \t{4}
+            (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<weights>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<bone_indices>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<normal>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) (?:\/\s
+            (?P<undef3>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}))?
+            """, re.VERBOSE),
+        "S12D0183F": re.compile(r"""
+            \t{4}
+            (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<weights>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<bone_indices>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<normal>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<undef1>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) \/\s
+            (?P<uv2>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) \/\s
+            (?P<undef3>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4})
+            """, re.VERBOSE)
+    }
+
 
     Meshes = []
     Mesh = []
@@ -172,6 +196,8 @@ def load_Mesh(filepath):
     weights = []
     index_counter = 0
     vertex_counter = 0
+    v_line_pattern = 0
+
     with open(filepath, 'r') as file:
         for line in file.readlines():
             if not read_indices and not read_vertices:
@@ -191,6 +217,16 @@ def load_Mesh(filepath):
                     vertex_counter = 0
                     Vertices = []
                     continue
+
+                # get VertexDeclaration
+                v_declaration_match = VertexDeclaration_pattern.match(line)
+                if v_declaration_match:
+                    declaration = v_declaration_match.group("vertex_declaration")
+                    if declaration in vertex_line_patterns:
+                        v_line_pattern = vertex_line_patterns[declaration]
+                    else: # fallback for unknown declaration
+                        v_line_pattern = vertex_line_patterns["S9445853F"]
+
 
                 # get skinned
                 skin_match = skinned_pattern.match(line)
@@ -220,7 +256,7 @@ def load_Mesh(filepath):
             elif read_vertices:
                 # read vertices
                 if skinned:
-                    vertex_match = vertex_line_pattern_skinned.match(line)
+                    vertex_match = v_line_pattern.match(line)
                     if vertex_match and read_vertices:
                         pos = Vector(float(p) for p in vertex_match.group("pos").split())
                         weights = Vector(float(p) for p in vertex_match.group("weights").split())
@@ -232,7 +268,7 @@ def load_Mesh(filepath):
                         vertex_counter += 1
                         continue
                 else:
-                    vertex_match = vertex_line_pattern.match(line)
+                    vertex_match = v_line_pattern.match(line)
                     if vertex_match and read_vertices:
                         pos = Vector(float(p) for p in vertex_match.group("pos").split())
                         normal = Vector(float(p) for p in vertex_match.group("normal").split())
