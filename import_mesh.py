@@ -2,7 +2,8 @@ import bpy
 import os
 import re
 
-from mathutils import (Vector, Quaternion, Matrix)
+from mathutils import (Vector, Quaternion, Matrix, Euler)
+from copy import deepcopy
 
 bone_mapping = []
 skel = None
@@ -15,10 +16,20 @@ closing_bracket = re.compile(r"\t+\}+")
 
 
 def find_skel_file(mesh_path):
+    def find_in_folder(folder):
+        for file in os.listdir(folder):
+            if file.endswith(".skel"):
+                return os.path.join(folder, file)
+        return None
+
     folder = os.path.dirname(os.path.abspath(mesh_path))
-    for file in os.listdir(folder):
-        if file.endswith(".skel"):
-            return os.path.join(folder, file)
+    search = find_in_folder(folder)
+    if search:
+        return search
+    parent_folder = os.path.join(folder, os.pardir)
+    search = find_in_folder(parent_folder)
+    if search:
+        return search
     return None
 
 def load_skel(filepath):
@@ -27,68 +38,87 @@ def load_skel(filepath):
     NumBones_pattern = re.compile(r"\t+ NumBones \s+ (?P<NumBones>\d+)", re.VERBOSE)
     Bone_header_pattern = re.compile(r"\t+ Bone \s+ (?P<bone_name>[^\s]+) \s+ (?P<bone_id>\d+)", re.VERBOSE)
     MirrorBoneId_pattern = re.compile(r"\t+ MirrorBoneId \s+ (?P<MirrorBoneId>\d+)", re.VERBOSE)
-    Flags_pattern = re.compile(r"\t+ Flags (?P<flags>(\s+([^\s]+)){1,6})", re.VERBOSE)
+    Flags_pattern = re.compile(r"\t+ Flags \s+ (?P<flags>(([^\s]+)\s){1,6})", re.VERBOSE)
     RotationQuaternion_pattern = re.compile(r"\t+ RotationQuaternion (?P<RotationQuaternion>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){1,6})", re.VERBOSE)
     LocalOffset_pattern = re.compile(r"\t+ LocalOffset (?P<LocalOffset>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){1,6})", re.VERBOSE)
     Scale_pattern = re.compile(r"\t+ Scale (?P<Scale>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){1,6})", re.VERBOSE)
     Children_pattern = re.compile(r"\t+ Children \s+ (?P<Children>\d+)", re.VERBOSE)
 
+    def getTransformFlags(flags):
+        loc_rot = False
+        loc_trans = False
+        if "ROT_X" in flags and "ROT_Y" in flags and "ROT_Z" in flags:
+            loc_rot = True
+        if "TRANS_X" in flags and "TRANS_Y" in flags and "TRANS_Z" in flags:
+            loc_trans = True
+        return loc_rot, loc_trans
 
-    def add_bone(lines, line_n, name, b_id, armature, parent=None):
+    def add_bone(lines, line_n, name, b_id, armature, obj, parent=None):
         global bone_mapping
         bone = {'id': b_id, 'name': name, 'children': {}}
         has_children = False
         line_number = line_n
         b_bone = 0
+        loc_rot = False
+        loc_trans = False
         while line_number < len(lines):
+            line = lines[line_number]
+            Flags_match = Flags_pattern.match(line)
 
-            RotQuat_match = RotationQuaternion_pattern.match(lines[line_number])
+            if Flags_match:
+                loc_rot, loc_trans = getTransformFlags(Flags_match.group("flags"))
+
+            RotQuat_match = RotationQuaternion_pattern.match(line)
             if RotQuat_match:
                 bone["RotationQuaternion"] = tuple(float(r) for r in RotQuat_match.group("RotationQuaternion").split())
                 line_number += 1
                 continue
 
-            LocOff_match = LocalOffset_pattern.match(lines[line_number])
+            LocOff_match = LocalOffset_pattern.match(line)
             if LocOff_match:
                 bone["LocalOffset"] = tuple(float(l) for l in LocOff_match.group("LocalOffset").split())
                 line_number += 1
                 continue
 
-            Scale_match = Scale_pattern.match(lines[line_number])
+            Scale_match = Scale_pattern.match(line)
             if Scale_match:
                 bone_mapping.append(name)
                 bone["Scale"] = tuple(float(s) for s in Scale_match.group("Scale").split())
                 b_bone = armature.edit_bones.new(name)
                 b_bone.head = (0,0,0)
-                b_bone.tail = (0,0.1,0)
+                b_bone.tail = (0,0.05,0)
                 b_bone.use_inherit_rotation = True
                 b_bone.use_local_location = True
-                q = Quaternion(bone["RotationQuaternion"])
-                b_bone.matrix = q.to_matrix().to_4x4()
-                b_bone.translate(Vector(bone["LocalOffset"]))
+                quad = Quaternion((bone["RotationQuaternion"][3], bone["RotationQuaternion"][0], bone["RotationQuaternion"][1], bone["RotationQuaternion"][2]))
+                mat = quad.to_matrix().to_4x4()
+                b_bone.matrix = mat
+                position = Vector(bone["LocalOffset"])
+                b_bone.translate(position)
                 if parent:
                     b_bone.parent = parent
+                    b_bone.matrix = parent.matrix @ b_bone.matrix
+
                 line_number += 1
                 continue
 
-            children_match = Children_pattern.match(lines[line_number])
+            children_match = Children_pattern.match(line)
             if children_match:
                 has_children = True
                 line_number += 1
                 continue
 
 
-            bone_match = Bone_header_pattern.match(lines[line_number])
+            bone_match = Bone_header_pattern.match(line)
             if bone_match:
                 bone_id = bone_match.group("bone_id")
                 bone_name = bone_match.group("bone_name")
                 line_number += 1
 
-                line_number, child = add_bone(lines, line_number, bone_name , bone_id, armature, b_bone)
+                line_number, child = add_bone(lines, line_number, bone_name , bone_id, armature, obj, b_bone)
                 bone["children"][bone_name] = child
                 continue
 
-            end_match = closing_bracket.match(lines[line_number])
+            end_match = closing_bracket.match(line)
             if end_match:
                 line_number += 2 if has_children else 1
                 return line_number, bone
@@ -108,22 +138,23 @@ def load_skel(filepath):
         line_number = 0
         while line_number < len(lines):
         # for line in lines:
-            num_bones_match = NumBones_pattern.match(lines[line_number])
+            line = lines[line_number]
+            num_bones_match = NumBones_pattern.match(line)
             if num_bones_match:
                 num_bones = int(num_bones_match.group("NumBones"))
                 line_number += 1
                 continue
-            dat_match = DataCRC_pattern.match(lines[line_number])
+            dat_match = DataCRC_pattern.match(line)
             if dat_match:
                 data_crc = int(dat_match.group("DataCRC"))
                 line_number += 1
                 continue
-            bone_match = Bone_header_pattern.match(lines[line_number])
+            bone_match = Bone_header_pattern.match(line)
             if bone_match:
                 bone_id = bone_match.group("bone_id")
                 bone_name = bone_match.group("bone_name")
                 line_number += 1
-                line_number, skelett[bone_name] = add_bone(lines, line_number,bone_name, bone_id, arma)
+                line_number, skelett[bone_name] = add_bone(lines, line_number,bone_name, bone_id, arma, Obj)
                 continue
             line_number += 1
 
@@ -355,7 +386,7 @@ def load(operator, context, filepath="", import_armature=True, **kwargs):
     if import_armature:
         skel_file = find_skel_file(filepath)
         if skel_file:
-            skel = load_skel(find_skel_file(filepath))
+            skel = load_skel(skel_file)
 
     mesh = load_Mesh(filepath)
 
