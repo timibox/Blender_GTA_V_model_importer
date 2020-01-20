@@ -174,22 +174,22 @@ def load_Mesh(filepath):
 
     # Todo add all VertexDeclarations
     vertex_line_patterns = {
-        "N209731BE": re.compile(r"""
+        "N209731BE": r"""
             \t{4}
             (?P<pos>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
             (?P<normal>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
             (?P<color>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){4}) \/
             (?P<uv>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){2})$
-            """, re.VERBOSE),
-        "N51263BB5": re.compile(r"""
+            """,
+        "N51263BB5": r"""
             \t{4}
             (?P<pos>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
             (?P<normal>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3}) \/
             (?P<color>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){4}) \/
             (?P<uv>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){2}) \/
             (?P<undef3>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){4})$
-            """, re.VERBOSE),
-        "S9445853F": re.compile(r"""
+            """,
+        "S9445853F": r"""
             \t{4}
             (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
             (?P<weights>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
@@ -198,8 +198,8 @@ def load_Mesh(filepath):
             (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
             (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) (?:\/\s
             (?P<undef3>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}))?
-            """, re.VERBOSE),
-        "S12D0183F": re.compile(r"""
+            """,
+        "S12D0183F": r"""
             \t{4}
             (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
             (?P<weights>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
@@ -210,7 +210,28 @@ def load_Mesh(filepath):
             (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) \/\s
             (?P<uv2>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) \/\s
             (?P<undef3>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4})
-            """, re.VERBOSE)
+            """,
+        "SD7D22350": r"""
+            \t{4}
+            (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<weights>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<bone_indices>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<normal>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<undef1>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) \/\s
+            (?P<undef3>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4})
+            """,
+        "SBED48839": r"""
+            \t{4}
+            (?P<pos>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<weights>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<bone_indices>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<normal>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){3}) \/\s
+            (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<undef1>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
+            (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s){2})
+            """
     }
 
 
@@ -254,9 +275,9 @@ def load_Mesh(filepath):
                 if v_declaration_match:
                     declaration = v_declaration_match.group("vertex_declaration")
                     if declaration in vertex_line_patterns:
-                        v_line_pattern = vertex_line_patterns[declaration]
+                        v_line_pattern = re.compile(vertex_line_patterns[declaration], re.VERBOSE)
                     else: # fallback for unknown declaration
-                        v_line_pattern = vertex_line_patterns["S9445853F"]
+                        v_line_pattern = re.compile(vertex_line_patterns["S9445853F"], re.VERBOSE)
 
 
                 # get skinned
