@@ -231,6 +231,16 @@ def load_Mesh(filepath):
             (?P<color>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
             (?P<undef1>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){4}) \/\s
             (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s){2})
+            """,
+        "NC794193B": r"""
+            \t{4}
+            (?P<pos>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3})\/\s
+            (?P<normal>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){3})\/\s
+            (?P<color>(?:(?:\s?[\-\+]?\d*(?:\.\d*)?)\s?){4}) \/\s
+            (?P<bone_indices>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s?){4}) \/\s
+            (?P<uv>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) \/\s
+            (?P<uv2>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s+){2}) \/\s
+            (?P<undef1>(?:(?:[\-\+]?\d*(?:\.\d*)?)\s?){4})$
             """
     }
 
@@ -389,13 +399,18 @@ def load_Mesh(filepath):
                 print("mesh validation failed")
         else:
             print("missing vertex data")
-
-    bpy.ops.object.join()
-    bpy.context.view_layer.objects.active.name = base_name
-    return bpy.context.view_layer.objects.active
+    if bpy.context.view_layer.objects.active:
+        bpy.ops.object.join()
+        bpy.context.view_layer.objects.active.name = base_name
+        return bpy.context.view_layer.objects.active
+    else:
+        return None
 
 
 def load(operator, context, filepath="", import_armature=True, **kwargs):
+    def message(self, context):
+        self.layout.label(text="failed to import model!")
+
     global bone_mapping, skel
     bone_mapping = []
     skel = None
@@ -410,9 +425,11 @@ def load(operator, context, filepath="", import_armature=True, **kwargs):
             skel = load_skel(skel_file)
 
     mesh = load_Mesh(filepath)
-
-    if skel:
-        mod = mesh.modifiers.new("armature", 'ARMATURE')
-        mod.object = skel
-        mesh.parent = skel
+    if mesh:
+        if skel:
+            mod = mesh.modifiers.new("armature", 'ARMATURE')
+            mod.object = skel
+            mesh.parent = skel
+    else:
+        bpy.context.window_manager.popup_menu(message, title="Error", icon='ERROR')
     return {'FINISHED'}
