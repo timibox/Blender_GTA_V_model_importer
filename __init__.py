@@ -25,14 +25,15 @@ bl_info = {
 
 if "bpy" in locals():
     import importlib
-    if "import_mesh" in locals():
-        importlib.reload(import_mesh)
+    if "importer" in locals():
+        importlib.reload(importer)
 else:
-    from . import import_mesh
+    from . import importer
 
 
 
 import bpy
+import os
 from bpy.props import (
         BoolProperty,
         EnumProperty,
@@ -52,10 +53,10 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
     bl_idname = "import_scene.gta"
     bl_label = 'Import mesh'
     bl_options = {'UNDO'}
-    filename_ext = ".mesh"
+    filename_ext = [".odr", ".odd"]
 
     filter_glob: StringProperty(
-            default="*.mesh",
+            default="*.odr;*.odd",
             options={'HIDDEN'}
             )
 
@@ -64,14 +65,29 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
             description="Import Armatures if existing",
             default=True,
             )
+    LOD: EnumProperty(
+        name="LOD",
+        description="If LOD does not exist, closest match will be loaded",
+        items=[
+            ("high", "high", "high", 1),
+            ("mid", "mid", "mid", 2),
+            ("low", "low", "low", 3),
+            ("vlow", "vlow", "vlow", 4)
+        ],
+        default="high",
+        options=set()
+    )
 
     def execute(self, context):
         keywords = self.as_keywords()
-        return import_mesh.load(self, context, **keywords)
+        keywords["name"] = os.path.basename(keywords["filepath"]).split(".")[0]
+        keywords["file_extension"] = os.path.basename(keywords["filepath"]).split(".")[1]
+        keywords["folder"] = os.path.dirname(keywords["filepath"])
+        return importer.load(self, context, **keywords)
 
 # Add to a menu
 def menu_func_import(self, context):
-    self.layout.operator(ImportGTA.bl_idname, text="GTA V Model (.mesh)")
+    self.layout.operator(ImportGTA.bl_idname, text="GTA V Model (.odr/.odd)")
 
 
 def register():
