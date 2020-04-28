@@ -19,7 +19,7 @@ bl_info = {
     "blender" : (2, 80, 0),
     "version" : (1, 0, 0),
     "location" : "",
-    "warning" : "Not for comercial use!",
+    "warning" : "Not for commercial use!",
     "category" : "Import"
 }
 
