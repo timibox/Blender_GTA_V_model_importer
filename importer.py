@@ -6,10 +6,9 @@ else:
 
 import bpy
 import os
-
 from mathutils import (Vector, Quaternion, Matrix, Euler)
-bone_mapping = []
 
+bone_mapping = []
 vertexStructures = {
     "N209731BE": {"pos": 0, "normal": 1, "color": 2, "uv": 3},
     "N51263BB5": {"pos": 0, "normal": 1, "color": 2, "uv": 3, "undef3": 4},
@@ -68,6 +67,7 @@ def importMesh(filepath, skinned=False, **kwargs):
     p.read_file(filepath)
     base_name = getNameFromFile(filepath)
 
+    objects = []
     for num, geometry in enumerate(p.data["members"][0]["members"][1]["members"]):
         name = base_name + str(num)
         faces = geometry["members"][0]["faces"]
@@ -81,10 +81,12 @@ def importMesh(filepath, skinned=False, **kwargs):
             setVertexAttributes(Obj, mesh, geometry["members"][1]["vertices"], VertexDeclaration, skinned and p.data["members"][0]["Skinned"])
             bpy.context.scene.collection.objects.link(Obj)
             Obj.select_set(True)
+            objects.append(Obj)
             bpy.context.view_layer.objects.active = Obj
 
     if bpy.context.view_layer.objects.active:
-        bpy.ops.object.join()
+        if len(objects) > 1:
+            bpy.ops.object.join()
         bpy.context.view_layer.objects.active.name = base_name
         activeObject = bpy.context.view_layer.objects.active
         activeObject.select_set(False)

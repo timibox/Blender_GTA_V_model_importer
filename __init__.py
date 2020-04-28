@@ -14,12 +14,12 @@
 bl_info = {
     "name" : "GTA V Model importer",
     "author" : "Lendo Keilbaum",
-    "description" : "Import GTA V models (.mesh)",
+    "description" : "Import GTA V models (.odr, .odd)",
     "location": "File > Import",
     "blender" : (2, 80, 0),
-    "version" : (0, 0, 1),
+    "version" : (1, 0, 0),
     "location" : "",
-    "warning" : "",
+    "warning" : "Not for comercial use!",
     "category" : "Import"
 }
 
