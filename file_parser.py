@@ -114,7 +114,3 @@ class GTA_Parser:
         else:
             print("path does not exist: {0}".format(filepath))
             return False
-
-
-    def print_blocks(self):
-        print(self.data)
