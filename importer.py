@@ -22,6 +22,60 @@ vertexStructures = {
 def getNameFromFile(filepath):
     return os.path.basename(filepath).split(".")[0]
 
+
+def getMaterial(shaders, shader_index, mesh_name, **kwargs):
+
+    def getShaderNode(mat):
+        ntree = mat.node_tree
+        node_out = ntree.get_output_node('EEVEE')
+        shader_node = node_out.inputs['Surface'].links[0].from_node
+        return shader_node
+
+    def getShaderColorInput(mat):
+        shaderNode = getShaderNode(mat)
+        return shaderNode.inputs['Color' if mat.use_shadeless else 'Base Color']
+
+    def getSampler(sampler_name, **kwargs):
+        image_name = sampler_name.lower() + ".dds"
+        image_path = os.path.join(kwargs["folder"], image_name)
+        if os.path.exists(image_path):
+            teximage_node = ntree.nodes.new('ShaderNodeTexImage')
+            img = bpy.data.images.load(image_path, check_existing=True)
+            img.name = kwargs["name"]+ "_" + image_name
+            teximage_node.image = img
+            return teximage_node
+        else:
+            print('sampler not found! "{0}"'.format(image_path))
+            return None
+
+    # Get material
+    mat_name = kwargs["name"]+ "_" + mesh_name + str(shader_index)
+    mat = bpy.data.materials.get(mat_name)
+    if mat is None:
+        # create material
+        mat = bpy.data.materials.new(name=mat_name)
+        mat.use_nodes = True
+
+        ntree = mat.node_tree
+        shader = getShaderNode(mat)
+        links = ntree.links
+        colorInput = getShaderColorInput(mat)
+        # add diffuse map
+        teximage_node = getSampler(shaders["members"][shader_index]["DiffuseSampler"], **kwargs)
+        if teximage_node:
+            links.new(teximage_node.outputs['Color'],colorInput)
+        # add normal map
+        teximage_node = getSampler(shaders["members"][shader_index]["BumpSampler"], **kwargs)
+        if teximage_node:
+            normalMap_node = ntree.nodes.new('ShaderNodeNormalMap')
+            teximage_node.image.colorspace_settings.name = 'Raw'
+            links.new(normalMap_node.outputs['Normal'],shader.inputs['Normal'])
+            links.new(teximage_node.outputs['Color'],normalMap_node.inputs['Color'])
+
+
+    return mat
+
+
 def setVertexAttributes(Obj, mesh, VertexData, VertexDeclaration, skinned):
     mesh.uv_layers.new(name="UVMap")
     uvlayer = mesh.uv_layers.active.data
@@ -62,7 +116,7 @@ def setVertexAttributes(Obj, mesh, VertexData, VertexDeclaration, skinned):
     mesh.normals_split_custom_set(normals)
 
 
-def importMesh(filepath, skinned=False, **kwargs):
+def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwargs):
     p = file_parser.GTA_Parser()
     p.read_file(filepath)
     base_name = getNameFromFile(filepath)
@@ -72,6 +126,7 @@ def importMesh(filepath, skinned=False, **kwargs):
         name = base_name + str(num)
         faces = geometry["members"][0]["faces"]
         verts = geometry["members"][1]["positions"]
+        shader_index = int(geometry["ShaderIndex"])
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata(verts, (), faces)
 
@@ -83,6 +138,10 @@ def importMesh(filepath, skinned=False, **kwargs):
             Obj.select_set(True)
             objects.append(Obj)
             bpy.context.view_layer.objects.active = Obj
+            if create_materials:
+                # Assign material to object
+                mat = getMaterial(shaders, shader_index, base_name, **kwargs)
+                Obj.data.materials.append(mat)
 
     if bpy.context.view_layer.objects.active:
         if len(objects) > 1:
@@ -152,16 +211,18 @@ def loadSkeleton(filepath, folder="", name="", **kwargs):
         return None
 
 
+
 def loadODR(filepath, **kwargs):
     odrFile = file_parser.GTA_Parser()
     odrFile.read_file(filepath)
     name = getNameFromFile(filepath)
     lodgroup = odrFile.getMemberByName("LodGroup")
+    shaders = odrFile.getMemberByName("Shaders")
     mesh_path = ""
     for key, value in lodgroup["members"][0].items():
         if name in key and key.endswith(".mesh"):
             mesh_path = os.path.join(kwargs["folder"], *key.split("\\"))
-    return importMesh(mesh_path, **kwargs)
+    return importMesh(mesh_path, shaders, **kwargs)
 
 def loadODD(filepath, **kwargs):
     oddFile = file_parser.GTA_Parser()

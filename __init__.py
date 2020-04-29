@@ -65,6 +65,13 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
             description="Import Armatures if existing",
             default=True,
             )
+
+    create_materials: BoolProperty(
+            name="create materials",
+            description="create materials and import textures",
+            default=True
+        )
+
     LOD: EnumProperty(
         name="LOD",
         description="If LOD does not exist, closest match will be loaded",

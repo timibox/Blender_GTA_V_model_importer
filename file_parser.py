@@ -30,12 +30,6 @@ class GTA_Parser:
         return findMember(self.data, name)
 
     def read_file(self, filepath):
-        self.name = os.path.basename(filepath).split(".")[0]
-        self.path = filepath
-        self.folder = os.path.dirname(filepath)
-        self.subfolder = os.path.join(self.folder, self.name)
-
-
         def getVertices(line, member):
             raw_vertex = [sp.split() for sp in line.split(' / ')]
             # vector_list = [Vector(float(p) for p in v) for v in raw_vertex]
@@ -106,7 +100,11 @@ class GTA_Parser:
 
             return this_member
 
-        if os.path.exists(filepath):
+        if filepath and os.path.exists(filepath):
+            self.name = os.path.basename(filepath).split(".")[0]
+            self.path = filepath
+            self.folder = os.path.dirname(filepath)
+            self.subfolder = os.path.join(self.folder, self.name)
             with open(filepath, 'r') as file:
                 self.data_lines = file.read().splitlines()
             self.data = get_data_blocks(0)
