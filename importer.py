@@ -9,6 +9,7 @@ import os
 from mathutils import (Vector, Quaternion, Matrix, Euler)
 
 bone_mapping = []
+skeleton = None
 vertexStructures = {
     "N209731BE": {"pos": 0, "normal": 1, "color": 2, "uv": 3},
     "N51263BB5": {"pos": 0, "normal": 1, "color": 2, "uv": 3, "undef3": 4},
@@ -26,57 +27,97 @@ def getNameFromFile(filepath):
 def getMaterial(shaders, shader_index, mesh_name, **kwargs):
 
     def getShaderNode(mat):
-        ntree = mat.node_tree
-        node_out = ntree.get_output_node('EEVEE')
         shader_node = node_out.inputs['Surface'].links[0].from_node
         return shader_node
 
-    def getShaderColorInput(mat):
+    def getShaderInput(mat, name):
         shaderNode = getShaderNode(mat)
-        return shaderNode.inputs['Color' if mat.use_shadeless else 'Base Color']
+        return shaderNode.inputs[name]
 
     def getSampler(sampler_name, **kwargs):
-        image_name = sampler_name.lower() + ".dds"
-        image_path = os.path.join(kwargs["folder"], image_name)
-        if os.path.exists(image_path):
+        dot_split = sampler_name.split(".")
+        if len(dot_split) > 1:
+            sampler_name = dot_split[0]
+        image_name = sampler_name.lower()
+        image_file = image_name + ".dds"
+        split = image_name.split("\\")
+        image_path = ""
+        path_variants = []
+
+        if len(split) > 1:
+            path_variants.append(os.path.join(kwargs["folder"], split[0], split[1] + ".dds"))
+            path_variants.append(os.path.join(kwargs["folder"], split[1] + ".dds"))
+            path_variants.append(os.path.join(kwargs["folder"], os.path.pardir, split[0], split[1] + ".dds"))
+        else:
+            path_variants.append(os.path.join(kwargs["folder"], image_file))
+            path_variants.append(os.path.join(kwargs["folder"], os.path.pardir, image_file))
+            path_variants.append(os.path.join(kwargs["folder"], os.path.pardir, image_name, image_file))
+
+        for path in path_variants:
+            if os.path.exists(path):
+                image_path = path
+                break
+
+        if image_path:
             teximage_node = ntree.nodes.new('ShaderNodeTexImage')
             img = bpy.data.images.load(image_path, check_existing=True)
             img.name = kwargs["name"]+ "_" + image_name
             teximage_node.image = img
             return teximage_node
         else:
-            print('sampler not found! "{0}"'.format(image_path))
+            print('sampler not found! "{0}"'.format(path_variants))
             return None
 
     # Get material
     mat_name = kwargs["name"]+ "_" + mesh_name + str(shader_index)
     mat = bpy.data.materials.get(mat_name)
+
     if mat is None:
         # create material
         mat = bpy.data.materials.new(name=mat_name)
         mat.use_nodes = True
 
         ntree = mat.node_tree
+        node_out = ntree.get_output_node('EEVEE')
         shader = getShaderNode(mat)
         links = ntree.links
-        colorInput = getShaderColorInput(mat)
         # add diffuse map
+        colorInput = getShaderInput(mat, 'Base Color')
         teximage_node = getSampler(shaders["members"][shader_index]["DiffuseSampler"], **kwargs)
         if teximage_node:
+            teximage_node.interpolation = 'Smart'
+
+            # blend mode
+            mat.blend_method = 'CLIP'
+            mat.shadow_method = 'CLIP'
+
             links.new(teximage_node.outputs['Color'],colorInput)
+            transparent_shader = ntree.nodes.new('ShaderNodeBsdfTransparent')
+            mix_shader = ntree.nodes.new('ShaderNodeMixShader')
+            # link transparent shader
+            links.new(teximage_node.outputs[1], mix_shader.inputs[0])
+            links.new(mix_shader.outputs[0], node_out.inputs['Surface'])
+            links.new(transparent_shader.outputs[0], mix_shader.inputs[1])
+            links.new(shader.outputs[0], mix_shader.inputs[2])
+
+
         # add normal map
         teximage_node = getSampler(shaders["members"][shader_index]["BumpSampler"], **kwargs)
         if teximage_node:
+            teximage_node.interpolation = 'Smart'
             normalMap_node = ntree.nodes.new('ShaderNodeNormalMap')
+            if shaders["members"][shader_index]["Bumpiness"]:
+                normalMap_node.inputs[0].default_value = float(shaders["members"][shader_index]["Bumpiness"])
+
             teximage_node.image.colorspace_settings.name = 'Raw'
             links.new(normalMap_node.outputs['Normal'],shader.inputs['Normal'])
             links.new(teximage_node.outputs['Color'],normalMap_node.inputs['Color'])
-
 
     return mat
 
 
 def setVertexAttributes(Obj, mesh, VertexData, VertexDeclaration, skinned):
+    global bone_mapping
     mesh.uv_layers.new(name="UVMap")
     uvlayer = mesh.uv_layers.active.data
     mesh.calc_loop_triangles()
@@ -116,7 +157,22 @@ def setVertexAttributes(Obj, mesh, VertexData, VertexDeclaration, skinned):
     mesh.normals_split_custom_set(normals)
 
 
+
+def findArmature(skel_file):
+    # try to get the existing armature by name
+    global skeleton, bone_mapping
+    skel_name = os.path.basename(skel_file).split(".")[0]
+    if skel_name in bpy.data.objects and bpy.data.objects[skel_name].type == 'ARMATURE':
+        skeleton = bpy.data.objects[skel_name]
+        for bone in skeleton.pose.bones:
+            bone_mapping.append(bone.name)
+        return True
+    else:
+        return False
+
+
 def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwargs):
+    global skeleton
     p = file_parser.GTA_Parser()
     p.read_file(filepath)
     base_name = getNameFromFile(filepath)
@@ -127,13 +183,23 @@ def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwarg
         faces = geometry["members"][0]["faces"]
         verts = geometry["members"][1]["positions"]
         shader_index = int(geometry["ShaderIndex"])
+        skinned_mesh = p.data["members"][0]["Skinned"] == "True"
+        bone_count = int(p.data["members"][0]["BoneCount"])
+
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata(verts, (), faces)
+
+        # find skelton
+        if skinned_mesh and not skeleton and "odd_root" in kwargs:
+            skel_file = find_in_folder(kwargs["odd_root"], extension=".skel")
+            if skel_file:
+                if not findArmature(skel_file):
+                    loadSkeleton(skel_file, **kwargs)
 
         if not mesh.validate():
             VertexDeclaration = geometry["VertexDeclaration"]
             Obj = bpy.data.objects.new(name, mesh)
-            setVertexAttributes(Obj, mesh, geometry["members"][1]["vertices"], VertexDeclaration, skinned and p.data["members"][0]["Skinned"])
+            setVertexAttributes(Obj, mesh, geometry["members"][1]["vertices"], VertexDeclaration, skinned_mesh)
             bpy.context.scene.collection.objects.link(Obj)
             Obj.select_set(True)
             objects.append(Obj)
@@ -144,14 +210,24 @@ def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwarg
                 Obj.data.materials.append(mat)
 
     if bpy.context.view_layer.objects.active:
+        # join all submeshes
         if len(objects) > 1:
             bpy.ops.object.join()
+
         bpy.context.view_layer.objects.active.name = base_name
         activeObject = bpy.context.view_layer.objects.active
+
+        # apply armature modifier
+        if skinned_mesh and skeleton:
+            mod = activeObject.modifiers.new("armature", 'ARMATURE')
+            mod.object = skeleton
+            activeObject.parent = skeleton
+
         activeObject.select_set(False)
         return activeObject
     else:
         return None
+
 
 def buildArmature(skel_file):
     arma = bpy.data.armatures.new(os.path.basename(skel_file.name))
@@ -193,67 +269,95 @@ def buildArmature(skel_file):
     return Obj
 
 
-def loadSkeleton(filepath, folder="", name="", **kwargs):
-    skel_path = os.path.join(folder, name, name + ".skel")
-    if not os.path.exists(skel_path):
-        def find_in_folder(folder):
-            for file in os.listdir(folder):
-                if file.endswith(".skel"):
-                    return os.path.join(folder, file)
-            return None
-        skel_path = find_in_folder(folder)
-    skel_file = file_parser.GTA_Parser()
-    if skel_file.read_file(skel_path):
-        return buildArmature(skel_file)
-    else:
-        print(skel_path)
-        print("skel file not found")
-        return None
+def find_in_folder(folder, file_name=None, extension=None):
+    for root, dirs, files in os.walk(folder, topdown=False):
+        for file in files:
+            print(os.path.join(root, file))
+            if extension:
+                if file.endswith(extension):
+                    return os.path.join(root, file)
+            else:
+                if file.endswith(file_name):
+                    return os.path.join(root, file)
+    return None
 
+
+def loadSkeleton(filepath, **kwargs):
+    global skeleton
+    skel_file = file_parser.GTA_Parser()
+    if skel_file.read_file(filepath):
+        skeleton = buildArmature(skel_file)
+        return True
+    else:
+        print(filepath)
+        print("skel file not found")
+        return False
 
 
 def loadODR(filepath, **kwargs):
+    global skeleton
+    kwargs["odr_root"] = os.path.dirname(filepath)
+    kwargs["odr_name"] = os.path.basename(filepath).split(".")[0]
     odrFile = file_parser.GTA_Parser()
     odrFile.read_file(filepath)
     name = getNameFromFile(filepath)
     lodgroup = odrFile.getMemberByName("LodGroup")
     shaders = odrFile.getMemberByName("Shaders")
+    skel = odrFile.getMemberByName("Skeleton")
+
+    # check for odr skeleton
+    if skel != "null" and not skeleton:
+        kwargs["odr_skeleton_path"] = os.path.join(kwargs["folder"], *skel.split("\\"))
+        if os.path.exists(kwargs["odr_skeleton_path"]):
+            loadSkeleton(kwargs["odr_skeleton_path"], **kwargs)
+        else:
+            print("missing odr skeleton file: {0}".format(kwargs["odr_skeleton_path"]))
+
     mesh_path = ""
     for key, value in lodgroup["members"][0].items():
         if name in key and key.endswith(".mesh"):
             mesh_path = os.path.join(kwargs["folder"], *key.split("\\"))
     return importMesh(mesh_path, shaders, **kwargs)
 
+
 def loadODD(filepath, **kwargs):
+    kwargs["odd_root"] = os.path.dirname(filepath)
+    kwargs["odd_name"] = os.path.basename(filepath).split(".")[0]
     oddFile = file_parser.GTA_Parser()
     oddFile.read_file(filepath)
     root = oddFile.getMemberByName("Version")
     mesh_list = []
     base_path = kwargs["folder"]
+
+    # check for odd skeleton
+    kwargs["odd_skeleton_path"] = os.path.join(kwargs["odd_root"], kwargs["odd_name"], kwargs["odd_name"] + ".skel")
+    if os.path.exists(kwargs["odd_skeleton_path"]):
+        if not findArmature(kwargs["odd_skeleton_path"]):
+            loadSkeleton(kwargs["odd_skeleton_path"], **kwargs)
     for odr in root["values"]:
         odr_path = os.path.join(base_path, *odr.split("\\"))
         kwargs["folder"] = os.path.dirname(odr_path)
         mesh_list.append(loadODR(odr_path, **kwargs))
     return mesh_list
 
+
 def deselectAll():
     for obj in bpy.data.objects:
         obj.select_set(False)
 
+
 def load(operator, context, filepath="", import_armature=True, **kwargs):
+    global bone_mapping, skeleton
+    skeleton = None
+    bone_mapping = []
+
     def message(self, context):
         self.layout.label(text="failed to import model!")
 
     bpy.context.view_layer.objects.active = None
 
     deselectAll()
-    skel = None
-    global bone_mapping
-    bone_mapping = []
-    if import_armature:
-        skel = loadSkeleton(filepath, **kwargs)
 
-    kwargs["skinned"] = bool(skel)
 
     if kwargs["file_extension"] == "odr":
         meshObjects = [loadODR(filepath, **kwargs)]
@@ -261,12 +365,6 @@ def load(operator, context, filepath="", import_armature=True, **kwargs):
         meshObjects = loadODD(filepath, **kwargs)
 
 
-    if meshObjects:
-        if skel:
-            for mesh in meshObjects:
-                mod = mesh.modifiers.new("armature", 'ARMATURE')
-                mod.object = skel
-                mesh.parent = skel
-    else:
+    if not meshObjects:
         bpy.context.window_manager.popup_menu(message, title="Error", icon='ERROR')
     return {'FINISHED'}

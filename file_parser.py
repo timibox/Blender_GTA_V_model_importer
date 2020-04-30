@@ -19,6 +19,9 @@ class GTA_Parser:
 
     def getMemberByName(self, name):
         def findMember(parent, name):
+            for key, value in parent.items():
+                if key == name:
+                    return value
             for member in parent["members"]:
                 if member["name"] == name:
                     return member
