@@ -110,8 +110,21 @@ def getMaterial(shaders, shader_index, mesh_name, **kwargs):
                 normalMap_node.inputs[0].default_value = float(shaders["members"][shader_index]["Bumpiness"])
 
             teximage_node.image.colorspace_settings.name = 'Raw'
-            links.new(normalMap_node.outputs['Normal'],shader.inputs['Normal'])
-            links.new(teximage_node.outputs['Color'],normalMap_node.inputs['Color'])
+
+            # invert greenchannel
+            seperateRGB = ntree.nodes.new("ShaderNodeSeparateRGB")
+            links.new(teximage_node.outputs['Color'], seperateRGB.inputs[0])
+
+            invertNode = ntree.nodes.new("ShaderNodeInvert")
+            links.new(seperateRGB.outputs[1], invertNode.inputs[1])
+            combineRGB = ntree.nodes.new("ShaderNodeCombineRGB")
+            links.new(invertNode.outputs[0], combineRGB.inputs[1])
+            links.new(seperateRGB.outputs[0], combineRGB.inputs[0])
+            links.new(seperateRGB.outputs[2], combineRGB.inputs[2])
+
+            links.new(combineRGB.outputs[0], normalMap_node.inputs['Color'])
+            links.new(normalMap_node.outputs['Normal'], shader.inputs['Normal'])
+
 
     return mat
 
