@@ -89,8 +89,8 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
             teximage_node.interpolation = 'Smart'
 
             # blend mode
-            mat.blend_method = 'CLIP'
-            mat.shadow_method = 'CLIP'
+            # mat.blend_method = 'CLIP'
+            # mat.shadow_method = 'CLIP'
 
             links.new(teximage_node.outputs['Color'],colorInput)
             transparent_shader = ntree.nodes.new('ShaderNodeBsdfTransparent')
