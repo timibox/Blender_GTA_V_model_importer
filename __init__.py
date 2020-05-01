@@ -60,17 +60,29 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
             options={'HIDDEN'}
             )
 
-    import_armature: BoolProperty(
-            name="import armature",
-            description="Import Armatures if existing",
-            default=True,
-            )
+    import_armature: EnumProperty(
+        name="import_armature",
+        description="create or use existing armature",
+        items=[
+            ("no", "no", "no", 1),
+            ("create", "create", "create", 2),
+            ("auto", "auto", "auto", 3),
+        ],
+        default="auto",
+        options=set()
+    )
 
-    create_materials: BoolProperty(
-            name="create materials",
-            description="create materials and import textures",
-            default=True
-        )
+    create_materials: EnumProperty(
+        name="create materials",
+        description="create materials and import textures",
+            items=[
+            ("no", "no", "no", 1),
+            ("create", "create", "create", 2),
+            ("auto", "auto", "auto", 3),
+        ],
+        default="auto",
+        options=set()
+    )
 
     LOD: EnumProperty(
         name="LOD",

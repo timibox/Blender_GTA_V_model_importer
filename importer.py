@@ -10,12 +10,13 @@ from mathutils import (Vector, Quaternion, Matrix, Euler)
 
 bone_mapping = []
 skeleton = None
+selection = None
 vertexStructures = {
     "N209731BE": {"pos": 0, "normal": 1, "color": 2, "uv": 3},
-    "N51263BB5": {"pos": 0, "normal": 1, "color": 2, "uv": 3, "undef3": 4},
-    "S9445853F": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "uv": 5, "undef3": 6},
-    "S12D0183F": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "uv2": 7, "undef3": 8},
-    "SD7D22350": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "undef3": 7},
+    "N51263BB5": {"pos": 0, "normal": 1, "color": 2, "uv": 3, "undef2": 4},
+    "S9445853F": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "uv": 5, "undef2": 6},
+    "S12D0183F": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "uv2": 7, "undef2": 8},
+    "SD7D22350": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "undef2": 7},
     "SBED48839": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6},
     "NC794193B": {"pos": 0, "normal": 1, "color": 2, "bone_indices": 3, "uv": 4, "uv2": 5, "undef1": 5}
 }
@@ -24,7 +25,7 @@ def getNameFromFile(filepath):
     return os.path.basename(filepath).split(".")[0]
 
 
-def getMaterial(shaders, shader_index, mesh_name, **kwargs):
+def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
 
     def getShaderNode(mat):
         shader_node = node_out.inputs['Surface'].links[0].from_node
@@ -72,7 +73,7 @@ def getMaterial(shaders, shader_index, mesh_name, **kwargs):
     mat_name = kwargs["name"]+ "_" + mesh_name + str(shader_index)
     mat = bpy.data.materials.get(mat_name)
 
-    if mat is None:
+    if mat is None or create_materials == "create":
         # create material
         mat = bpy.data.materials.new(name=mat_name)
         mat.use_nodes = True
@@ -144,13 +145,21 @@ def setVertexAttributes(Obj, mesh, VertexData, VertexDeclaration, skinned):
     uvlayer = mesh.uv_layers.active.data
     mesh.calc_loop_triangles()
     normals = []
-
+    vcolor1 = None
+    vcolor2 = None
+    vcolor3 = None
     # get vertex mapping
     normalIndex = vertexStructures[VertexDeclaration]["normal"]
     uvIndex = vertexStructures[VertexDeclaration]["uv"]
     if skinned:
         boneIndex = vertexStructures[VertexDeclaration]["bone_indices"]
         weightIndex = vertexStructures[VertexDeclaration]["weights"]
+    if "color" in vertexStructures[VertexDeclaration]:
+        vcolor1 = mesh.vertex_colors.new(name="color1")
+    if "undef1" in vertexStructures[VertexDeclaration]:
+        vcolor2 = mesh.vertex_colors.new(name="color2")
+    if "undef2" in vertexStructures[VertexDeclaration]:
+        vcolor3 = mesh.vertex_colors.new(name="color3")
 
     for i, lt in enumerate(mesh.loop_triangles):
         for loop_index in lt.loops:
@@ -173,6 +182,12 @@ def setVertexAttributes(Obj, mesh, VertexData, VertexDeclaration, skinned):
                     weight = VertexData[mesh.loops[loop_index].vertex_index][weightIndex][i]
                     if weight > 0.0:
                         group.add([mesh.loops[loop_index].vertex_index], weight, 'REPLACE' )
+            if vcolor1:
+                vcolor1.data[loop_index].color = VertexData[mesh.loops[loop_index].vertex_index][vertexStructures[VertexDeclaration]["color"]]/256
+            if vcolor2:
+                vcolor2.data[loop_index].color = VertexData[mesh.loops[loop_index].vertex_index][vertexStructures[VertexDeclaration]["undef1"]]/256
+            if vcolor3:
+                vcolor3.data[loop_index].color = VertexData[mesh.loops[loop_index].vertex_index][vertexStructures[VertexDeclaration]["undef2"]]
 
     # normal custom verts
     mesh.use_auto_smooth = True
@@ -182,18 +197,28 @@ def setVertexAttributes(Obj, mesh, VertexData, VertexDeclaration, skinned):
 
 def findArmature(skel_file):
     # try to get the existing armature by name
-    global skeleton, bone_mapping
+    global skeleton, bone_mapping, selection
     skel_name = os.path.basename(skel_file).split(".")[0]
-    if skel_name in bpy.data.objects and bpy.data.objects[skel_name].type == 'ARMATURE':
-        skeleton = bpy.data.objects[skel_name]
-        for bone in skeleton.pose.bones:
-            bone_mapping.append(bone.name)
-        return True
-    else:
+
+    def findArmatureFromList(objectList):
+        global skeleton
+        for obj in objectList:
+            if skel_name in obj.name and obj.type == 'ARMATURE':
+                skeleton = obj
+                for bone in skeleton.pose.bones:
+                    bone_mapping.append(bone.name)
+                return True
         return False
 
+    # first check selection
+    if not findArmatureFromList(selection):
+        #  then all objects
+        return findArmatureFromList(bpy.data.objects)
+    else:
+        return True
 
-def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwargs):
+
+def importMesh(filepath, shaders, import_armature, skinned=False, create_materials=False, **kwargs):
     global skeleton, bone_mapping
     p = file_parser.GTA_Parser()
     p.read_file(filepath)
@@ -205,7 +230,7 @@ def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwarg
         faces = geometry["members"][0]["faces"]
         verts = geometry["members"][1]["positions"]
         shader_index = int(geometry["ShaderIndex"])
-        skinned_mesh = p.data["members"][0]["Skinned"] == "True"
+        skinned_mesh = p.data["members"][0]["Skinned"] == "True" and import_armature != "no"
         bone_count = int(p.data["members"][0]["BoneCount"])
 
         mesh = bpy.data.meshes.new(name)
@@ -215,9 +240,10 @@ def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwarg
         if skinned_mesh and not skeleton and "odd_root" in kwargs:
             skel_file = find_in_folder(kwargs["odd_root"], extension=".skel")
             if skel_file:
-                if not findArmature(skel_file):
+                if import_armature == "create" or not findArmature(skel_file):
                     loadSkeleton(skel_file, **kwargs)
-            if not skel_file or len(bone_mapping) != bone_count:
+            if not skeleton:
+                skinned_mesh = False
                 print("no skeleton file or armature found for: {0}".format(filepath))
 
         if not mesh.validate():
@@ -228,9 +254,9 @@ def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwarg
             Obj.select_set(True)
             objects.append(Obj)
             bpy.context.view_layer.objects.active = Obj
-            if create_materials:
+            if create_materials != "no":
                 # Assign material to object
-                mat = getMaterial(shaders, shader_index, base_name, **kwargs)
+                mat = getMaterial(shaders, shader_index, base_name, create_materials, **kwargs)
                 Obj.data.materials.append(mat)
 
     if bpy.context.view_layer.objects.active:
@@ -318,7 +344,7 @@ def loadSkeleton(filepath, **kwargs):
         return False
 
 
-def loadODR(filepath, **kwargs):
+def loadODR(filepath, import_armature, **kwargs):
     global skeleton
     kwargs["odr_root"] = os.path.dirname(filepath)
     kwargs["odr_name"] = os.path.basename(filepath).split(".")[0]
@@ -330,10 +356,11 @@ def loadODR(filepath, **kwargs):
     skel = odrFile.getMemberByName("Skeleton")
 
     # check for odr skeleton
-    if skel != "null" and not skeleton:
+    if skel != "null" and import_armature != "no" and not skeleton:
         kwargs["odr_skeleton_path"] = os.path.join(kwargs["folder"], *skel.split("\\"))
         if os.path.exists(kwargs["odr_skeleton_path"]):
-            loadSkeleton(kwargs["odr_skeleton_path"], **kwargs)
+            if import_armature == "create" or not findArmature(kwargs["odr_skeleton_path"]):
+                loadSkeleton(kwargs["odr_skeleton_path"], **kwargs)
         else:
             print("missing odr skeleton file: {0}".format(kwargs["odr_skeleton_path"]))
 
@@ -341,10 +368,10 @@ def loadODR(filepath, **kwargs):
     for key, value in lodgroup["members"][0].items():
         if name in key and key.endswith(".mesh"):
             mesh_path = os.path.join(kwargs["folder"], *key.split("\\"))
-    return importMesh(mesh_path, shaders, **kwargs)
+    return importMesh(mesh_path, shaders, import_armature, **kwargs)
 
 
-def loadODD(filepath, **kwargs):
+def loadODD(filepath, import_armature, **kwargs):
     kwargs["odd_root"] = os.path.dirname(filepath)
     kwargs["odd_name"] = os.path.basename(filepath).split(".")[0]
     oddFile = file_parser.GTA_Parser()
@@ -354,14 +381,16 @@ def loadODD(filepath, **kwargs):
     base_path = kwargs["folder"]
 
     # check for odd skeleton
-    kwargs["odd_skeleton_path"] = os.path.join(kwargs["odd_root"], kwargs["odd_name"], kwargs["odd_name"] + ".skel")
-    if os.path.exists(kwargs["odd_skeleton_path"]):
-        if not findArmature(kwargs["odd_skeleton_path"]):
-            loadSkeleton(kwargs["odd_skeleton_path"], **kwargs)
+    if import_armature != "no":
+        kwargs["odd_skeleton_path"] = os.path.join(kwargs["odd_root"], kwargs["odd_name"], kwargs["odd_name"] + ".skel")
+        if os.path.exists(kwargs["odd_skeleton_path"]):
+            if import_armature == "create" or not findArmature(kwargs["odd_skeleton_path"]):
+                loadSkeleton(kwargs["odd_skeleton_path"], **kwargs)
+
     for odr in root["values"]:
         odr_path = os.path.join(base_path, *odr.split("\\"))
         kwargs["folder"] = os.path.dirname(odr_path)
-        mesh_list.append(loadODR(odr_path, **kwargs))
+        mesh_list.append(loadODR(odr_path, import_armature, **kwargs))
     return mesh_list
 
 
@@ -370,23 +399,22 @@ def deselectAll():
         obj.select_set(False)
 
 
-def load(operator, context, filepath="", import_armature=True, **kwargs):
-    global bone_mapping, skeleton
+def load(operator, context, filepath="", import_armature=False, **kwargs):
+    global bone_mapping, skeleton, selection
     skeleton = None
     bone_mapping = []
 
     def message(self, context):
         self.layout.label(text="failed to import model!")
 
+    selection = bpy.context.selected_objects
+    deselectAll()
     bpy.context.view_layer.objects.active = None
 
-    deselectAll()
-
-
     if kwargs["file_extension"] == "odr":
-        meshObjects = [loadODR(filepath, **kwargs)]
+        meshObjects = [loadODR(filepath, import_armature, **kwargs)]
     if kwargs["file_extension"] == "odd":
-        meshObjects = loadODD(filepath, **kwargs)
+        meshObjects = loadODD(filepath, import_armature, **kwargs)
 
 
     if not meshObjects:
