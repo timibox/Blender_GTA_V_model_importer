@@ -88,12 +88,12 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
         name="LOD",
         description="If LOD does not exist, closest match will be loaded",
         items=[
-            ("high", "high", "high", 1),
-            ("mid", "mid", "mid", 2),
-            ("low", "low", "low", 3),
-            ("vlow", "vlow", "vlow", 4)
+            ("High", "High", "High", 1),
+            ("Med", "Med", "Med", 2),
+            ("Low", "Low", "Low", 3),
+            ("Vlow", "Vlow", "Vlow", 4),
         ],
-        default="high",
+        default="High",
         options=set()
     )
 

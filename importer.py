@@ -212,7 +212,7 @@ def findArmature(skel_file):
 
     # first check selection
     if not findArmatureFromList(selection):
-        #  then all objects
+        # then all objects
         return findArmatureFromList(bpy.data.objects)
     else:
         return True
@@ -365,9 +365,23 @@ def loadODR(filepath, import_armature, **kwargs):
             print("missing odr skeleton file: {0}".format(kwargs["odr_skeleton_path"]))
 
     mesh_path = ""
-    for key, value in lodgroup["members"][0].items():
-        if name in key and key.endswith(".mesh"):
-            mesh_path = os.path.join(kwargs["folder"], *key.split("\\"))
+    # get LOD
+    LODs = []
+    match = False
+    for mesh in lodgroup["members"]:
+        for key, value in mesh.items():
+            if name in key and key.endswith(".mesh"):
+                path = os.path.join(kwargs["folder"], *key.split("\\"))
+                LODs.append(path)
+                if kwargs["LOD"] == mesh["name"]:
+                    match = True
+                    mesh_path = path
+
+    # if no match take lowest LOD
+    if not match:
+        print("LOD not found, take lowest available")
+        mesh_path = LODs[-1]
+
     return importMesh(mesh_path, shaders, import_armature, **kwargs)
 
 
