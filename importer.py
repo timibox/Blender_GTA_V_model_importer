@@ -125,6 +125,15 @@ def getMaterial(shaders, shader_index, mesh_name, **kwargs):
             links.new(combineRGB.outputs[0], normalMap_node.inputs['Color'])
             links.new(normalMap_node.outputs['Normal'], shader.inputs['Normal'])
 
+        # add specular map
+        teximage_node = getSampler(shaders["members"][shader_index]["SpecSampler"], **kwargs)
+        if teximage_node:
+            teximage_node.interpolation = 'Smart'
+            seperateRGB = ntree.nodes.new("ShaderNodeSeparateRGB")
+            links.new(teximage_node.outputs['Color'], seperateRGB.inputs[0])
+            links.new(seperateRGB.outputs[2], shader.inputs[5])
+
+
 
     return mat
 
@@ -185,7 +194,7 @@ def findArmature(skel_file):
 
 
 def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwargs):
-    global skeleton
+    global skeleton, bone_mapping
     p = file_parser.GTA_Parser()
     p.read_file(filepath)
     base_name = getNameFromFile(filepath)
@@ -208,6 +217,8 @@ def importMesh(filepath, shaders, skinned=False, create_materials=False, **kwarg
             if skel_file:
                 if not findArmature(skel_file):
                     loadSkeleton(skel_file, **kwargs)
+            if not skel_file or len(bone_mapping) != bone_count:
+                print("no skeleton file or armature found for: {0}".format(filepath))
 
         if not mesh.validate():
             VertexDeclaration = geometry["VertexDeclaration"]
