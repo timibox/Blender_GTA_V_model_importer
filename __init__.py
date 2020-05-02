@@ -61,12 +61,12 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
             )
 
     import_armature: EnumProperty(
-        name="import_armature",
-        description="create or use existing armature",
+        name="import armature",
+        description="Auto will use existing armature or create new one. Selecting the armature before importing the mesh, can solve name conflicts.",
         items=[
-            ("no", "no", "no", 1),
-            ("create", "create", "create", 2),
-            ("auto", "auto", "auto", 3),
+            ("no", "no", "no armature", 1),
+            ("create", "create", "force armature creation", 2),
+            ("auto", "auto", "armature can be reused", 3),
         ],
         default="auto",
         options=set()
@@ -74,11 +74,11 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
 
     create_materials: EnumProperty(
         name="create materials",
-        description="create materials and import textures",
+        description="Auto will use existing material or create new one.",
             items=[
-            ("no", "no", "no", 1),
-            ("create", "create", "create", 2),
-            ("auto", "auto", "auto", 3),
+            ("no", "no", "no materials", 1),
+            ("create", "create", "force material creation", 2),
+            ("auto", "auto", "materials can be reused", 3),
         ],
         default="auto",
         options=set()
