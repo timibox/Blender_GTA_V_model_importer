@@ -6,10 +6,13 @@ import GTA V models to Blender
 * bone weights
 * custom normals
 * armature
+* textures
+* vertext colors
+* LODs
 
 ## How to use:
 * save addon in addon folder and enable it
-* go to: File->Import->"GTA V Model (.mesh)"
+* go to: File->Import->"Import GTA V models (.odr, .odd)"
 
 ![image Info](./images/screenshot1.png "Screenshot")
 
