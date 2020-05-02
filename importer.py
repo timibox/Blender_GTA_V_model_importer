@@ -18,11 +18,26 @@ vertexStructures = {
     "S12D0183F": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "uv2": 7, "undef2": 8},
     "SD7D22350": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "undef2": 7},
     "SBED48839": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6},
-    "NC794193B": {"pos": 0, "normal": 1, "color": 2, "bone_indices": 3, "uv": 4, "uv2": 5, "undef1": 5}
+    "NC794193B": {"pos": 0, "normal": 1, "color": 2, "bone_indices": 3, "uv": 4, "uv2": 5, "undef1": 5},
+    "S1E9F420D": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "uv": 5}
+
 }
 
 def getNameFromFile(filepath):
     return os.path.basename(filepath).split(".")[0]
+
+
+def find_in_folder(folder, file_name=None, extension=None):
+    for root, dirs, files in os.walk(folder, topdown=False):
+        for file in files:
+            # print(os.path.join(root, file))
+            if extension:
+                if file.endswith(extension):
+                    return os.path.join(root, file)
+            else:
+                if file.endswith(file_name):
+                    return os.path.join(root, file)
+    return None
 
 
 def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
@@ -45,29 +60,35 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
         image_path = ""
         path_variants = []
 
-        if len(split) > 1:
-            path_variants.append(os.path.join(kwargs["folder"], split[0], split[1] + ".dds"))
-            path_variants.append(os.path.join(kwargs["folder"], split[1] + ".dds"))
-            path_variants.append(os.path.join(kwargs["folder"], os.path.pardir, split[0], split[1] + ".dds"))
-        else:
-            path_variants.append(os.path.join(kwargs["folder"], image_file))
-            path_variants.append(os.path.join(kwargs["folder"], os.path.pardir, image_file))
-            path_variants.append(os.path.join(kwargs["folder"], os.path.pardir, image_name, image_file))
+        if not "givemechecker" in image_name and not "*null*" in image_name:
+            if len(split) > 1:
+                image_name = split[1]
+                path_variants.append(os.path.join(kwargs["texture_folder"], split[0], image_name + ".dds"))
+                path_variants.append(os.path.join(kwargs["texture_folder"], image_name + ".dds"))
+                path_variants.append(os.path.join(kwargs["texture_folder"], os.path.pardir, split[0], image_name + ".dds"))
+            else:
+                path_variants.append(os.path.join(kwargs["texture_folder"], image_file))
+                path_variants.append(os.path.join(kwargs["texture_folder"], os.path.pardir, image_file))
+                path_variants.append(os.path.join(kwargs["texture_folder"], os.path.pardir, image_name, image_file))
 
-        for path in path_variants:
-            if os.path.exists(path):
-                image_path = path
-                break
+            for path in path_variants:
+                if os.path.exists(path):
+                    image_path = path
+                    break
+            if not image_path:
+                image_path = find_in_folder(kwargs["folder"], file_name=image_name + ".dds")
 
-        if image_path:
-            teximage_node = ntree.nodes.new('ShaderNodeTexImage')
-            img = bpy.data.images.load(image_path, check_existing=True)
-            img.name = kwargs["name"]+ "_" + image_name
-            teximage_node.image = img
-            return teximage_node
+            if image_path:
+                teximage_node = ntree.nodes.new('ShaderNodeTexImage')
+                img = bpy.data.images.load(image_path, check_existing=True)
+                img.name = kwargs["name"]+ "_" + image_name
+                teximage_node.image = img
+                return teximage_node
+            else:
+                print('sampler not found! "{0}"'.format(path_variants))
+                return None
         else:
-            print('sampler not found! "{0}"'.format(path_variants))
-            return None
+            print("no samplte to assign!")
 
     # Get material
     mat_name = kwargs["name"]+ "_" + mesh_name + str(shader_index)
@@ -84,55 +105,58 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
         links = ntree.links
         # add diffuse map
         colorInput = getShaderInput(mat, 'Base Color')
-        teximage_node = getSampler(shaders["members"][shader_index]["DiffuseSampler"], **kwargs)
-        if teximage_node:
-            teximage_node.interpolation = 'Smart'
+        if "DiffuseSampler" in shaders["members"][shader_index]:
+            teximage_node = getSampler(shaders["members"][shader_index]["DiffuseSampler"], **kwargs)
+            if teximage_node:
+                teximage_node.interpolation = 'Smart'
 
-            # blend mode
-            # mat.blend_method = 'CLIP'
-            # mat.shadow_method = 'CLIP'
+                # blend mode
+                # mat.blend_method = 'CLIP'
+                # mat.shadow_method = 'CLIP'
 
-            links.new(teximage_node.outputs['Color'],colorInput)
-            transparent_shader = ntree.nodes.new('ShaderNodeBsdfTransparent')
-            mix_shader = ntree.nodes.new('ShaderNodeMixShader')
-            # link transparent shader
-            links.new(teximage_node.outputs[1], mix_shader.inputs[0])
-            links.new(mix_shader.outputs[0], node_out.inputs['Surface'])
-            links.new(transparent_shader.outputs[0], mix_shader.inputs[1])
-            links.new(shader.outputs[0], mix_shader.inputs[2])
+                links.new(teximage_node.outputs['Color'],colorInput)
+                transparent_shader = ntree.nodes.new('ShaderNodeBsdfTransparent')
+                mix_shader = ntree.nodes.new('ShaderNodeMixShader')
+                # link transparent shader
+                links.new(teximage_node.outputs[1], mix_shader.inputs[0])
+                links.new(mix_shader.outputs[0], node_out.inputs['Surface'])
+                links.new(transparent_shader.outputs[0], mix_shader.inputs[1])
+                links.new(shader.outputs[0], mix_shader.inputs[2])
 
 
         # add normal map
-        teximage_node = getSampler(shaders["members"][shader_index]["BumpSampler"], **kwargs)
-        if teximage_node:
-            teximage_node.interpolation = 'Smart'
-            normalMap_node = ntree.nodes.new('ShaderNodeNormalMap')
-            if shaders["members"][shader_index]["Bumpiness"]:
-                normalMap_node.inputs[0].default_value = float(shaders["members"][shader_index]["Bumpiness"])
+        if "BumpSampler" in shaders["members"][shader_index]:
+            teximage_node = getSampler(shaders["members"][shader_index]["BumpSampler"], **kwargs)
+            if teximage_node:
+                teximage_node.interpolation = 'Smart'
+                normalMap_node = ntree.nodes.new('ShaderNodeNormalMap')
+                if shaders["members"][shader_index]["Bumpiness"]:
+                    normalMap_node.inputs[0].default_value = float(shaders["members"][shader_index]["Bumpiness"])
 
-            teximage_node.image.colorspace_settings.name = 'Raw'
+                teximage_node.image.colorspace_settings.name = 'Raw'
 
-            # invert greenchannel
-            seperateRGB = ntree.nodes.new("ShaderNodeSeparateRGB")
-            links.new(teximage_node.outputs['Color'], seperateRGB.inputs[0])
+                # invert greenchannel
+                seperateRGB = ntree.nodes.new("ShaderNodeSeparateRGB")
+                links.new(teximage_node.outputs['Color'], seperateRGB.inputs[0])
 
-            invertNode = ntree.nodes.new("ShaderNodeInvert")
-            links.new(seperateRGB.outputs[1], invertNode.inputs[1])
-            combineRGB = ntree.nodes.new("ShaderNodeCombineRGB")
-            links.new(invertNode.outputs[0], combineRGB.inputs[1])
-            links.new(seperateRGB.outputs[0], combineRGB.inputs[0])
-            links.new(seperateRGB.outputs[2], combineRGB.inputs[2])
+                invertNode = ntree.nodes.new("ShaderNodeInvert")
+                links.new(seperateRGB.outputs[1], invertNode.inputs[1])
+                combineRGB = ntree.nodes.new("ShaderNodeCombineRGB")
+                links.new(invertNode.outputs[0], combineRGB.inputs[1])
+                links.new(seperateRGB.outputs[0], combineRGB.inputs[0])
+                links.new(seperateRGB.outputs[2], combineRGB.inputs[2])
 
-            links.new(combineRGB.outputs[0], normalMap_node.inputs['Color'])
-            links.new(normalMap_node.outputs['Normal'], shader.inputs['Normal'])
+                links.new(combineRGB.outputs[0], normalMap_node.inputs['Color'])
+                links.new(normalMap_node.outputs['Normal'], shader.inputs['Normal'])
 
         # add specular map
-        teximage_node = getSampler(shaders["members"][shader_index]["SpecSampler"], **kwargs)
-        if teximage_node:
-            teximage_node.interpolation = 'Smart'
-            seperateRGB = ntree.nodes.new("ShaderNodeSeparateRGB")
-            links.new(teximage_node.outputs['Color'], seperateRGB.inputs[0])
-            links.new(seperateRGB.outputs[2], shader.inputs[5])
+        if "SpecSampler" in shaders["members"][shader_index]:
+            teximage_node = getSampler(shaders["members"][shader_index]["SpecSampler"], **kwargs)
+            if teximage_node:
+                teximage_node.interpolation = 'Smart'
+                seperateRGB = ntree.nodes.new("ShaderNodeSeparateRGB")
+                links.new(teximage_node.outputs['Color'], seperateRGB.inputs[0])
+                links.new(seperateRGB.outputs[2], shader.inputs[5])
 
 
 
@@ -319,19 +343,6 @@ def buildArmature(skel_file):
     return Obj
 
 
-def find_in_folder(folder, file_name=None, extension=None):
-    for root, dirs, files in os.walk(folder, topdown=False):
-        for file in files:
-            print(os.path.join(root, file))
-            if extension:
-                if file.endswith(extension):
-                    return os.path.join(root, file)
-            else:
-                if file.endswith(file_name):
-                    return os.path.join(root, file)
-    return None
-
-
 def loadSkeleton(filepath, **kwargs):
     global skeleton
     skel_file = file_parser.GTA_Parser()
@@ -339,7 +350,7 @@ def loadSkeleton(filepath, **kwargs):
         skeleton = buildArmature(skel_file)
         return True
     else:
-        print(filepath)
+        # print(filepath)
         print("skel file not found")
         return False
 
@@ -368,6 +379,9 @@ def loadODR(filepath, import_armature, **kwargs):
     # get LOD
     LODs = []
     match = False
+    if not "texture_folder" in kwargs:
+        kwargs["texture_folder"] = os.path.join(kwargs["odr_root"], kwargs["odr_name"])
+
     for mesh in lodgroup["members"]:
         for key, value in mesh.items():
             if name in key and key.endswith(".mesh"):
@@ -404,6 +418,7 @@ def loadODD(filepath, import_armature, **kwargs):
     for odr in root["values"]:
         odr_path = os.path.join(base_path, *odr.split("\\"))
         kwargs["folder"] = os.path.dirname(odr_path)
+        kwargs["texture_folder"] = os.path.dirname(odr_path)
         mesh_list.append(loadODR(odr_path, import_armature, **kwargs))
     return mesh_list
 
