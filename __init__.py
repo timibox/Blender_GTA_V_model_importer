@@ -84,6 +84,19 @@ class ImportGTA(bpy.types.Operator, ImportHelper):
         options=set()
     )
 
+    texture_format: EnumProperty(
+        name="texture format",
+        description="choose format of the textures",
+            items=[
+            (".dds", ".dds", ".dds", 1),
+            (".png", ".png", ".png", 2),
+            (".bmp", ".bmp", ".bmp", 3),
+            (".jpeg", ".jpeg", ".jpeg", 4),
+        ],
+        default=".dds",
+        options=set()
+    )
+
     LOD: EnumProperty(
         name="LOD",
         description="If LOD does not exist, closest match will be loaded",

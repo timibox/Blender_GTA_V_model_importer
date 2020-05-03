@@ -55,7 +55,7 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
         if len(dot_split) > 1:
             sampler_name = dot_split[0]
         image_name = sampler_name.lower()
-        image_file = image_name + ".dds"
+        image_file = image_name + kwargs["texture_format"]
         split = image_name.split("\\")
         image_path = ""
         path_variants = []
@@ -63,9 +63,9 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
         if not "givemechecker" in image_name and not "*null*" in image_name:
             if len(split) > 1:
                 image_name = split[1]
-                path_variants.append(os.path.join(kwargs["texture_folder"], split[0], image_name + ".dds"))
-                path_variants.append(os.path.join(kwargs["texture_folder"], image_name + ".dds"))
-                path_variants.append(os.path.join(kwargs["texture_folder"], os.path.pardir, split[0], image_name + ".dds"))
+                path_variants.append(os.path.join(kwargs["texture_folder"], split[0], image_name + kwargs["texture_format"]))
+                path_variants.append(os.path.join(kwargs["texture_folder"], image_name + kwargs["texture_format"]))
+                path_variants.append(os.path.join(kwargs["texture_folder"], os.path.pardir, split[0], image_name + kwargs["texture_format"]))
             else:
                 path_variants.append(os.path.join(kwargs["texture_folder"], image_file))
                 path_variants.append(os.path.join(kwargs["texture_folder"], os.path.pardir, image_file))
@@ -76,7 +76,7 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
                     image_path = path
                     break
             if not image_path:
-                image_path = find_in_folder(kwargs["folder"], file_name=image_name + ".dds")
+                image_path = find_in_folder(kwargs["folder"], file_name=image_name + kwargs["texture_format"])
 
             if image_path:
                 teximage_node = ntree.nodes.new('ShaderNodeTexImage')
@@ -292,10 +292,11 @@ def importMesh(filepath, shaders, import_armature, skinned=False, create_materia
         activeObject = bpy.context.view_layer.objects.active
 
         # apply armature modifier
-        if skinned_mesh and skeleton:
+        if skinned_mesh and skeleton and activeObject:
             mod = activeObject.modifiers.new("armature", 'ARMATURE')
-            mod.object = skeleton
-            activeObject.parent = skeleton
+            if mod:
+                mod.object = skeleton
+                activeObject.parent = skeleton
 
         activeObject.select_set(False)
         return activeObject
