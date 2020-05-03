@@ -15,6 +15,7 @@ import GTA V models to Blender
 * go to: File->Import->"Import GTA V models (.odr, .odd)"
 
 ![image Info](./images/screenshot1.png "Screenshot")
+![image Info](./images/component_peds.png "Screenshot")
 
 #### Video:
 https://youtu.be/3bzGU39B5Lw
