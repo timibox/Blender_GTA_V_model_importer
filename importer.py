@@ -115,13 +115,7 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
                 # mat.shadow_method = 'CLIP'
 
                 links.new(teximage_node.outputs['Color'],colorInput)
-                transparent_shader = ntree.nodes.new('ShaderNodeBsdfTransparent')
-                mix_shader = ntree.nodes.new('ShaderNodeMixShader')
-                # link transparent shader
-                links.new(teximage_node.outputs[1], mix_shader.inputs[0])
-                links.new(mix_shader.outputs[0], node_out.inputs['Surface'])
-                links.new(transparent_shader.outputs[0], mix_shader.inputs[1])
-                links.new(shader.outputs[0], mix_shader.inputs[2])
+                links.new(teximage_node.outputs[1], shader.inputs["Alpha"])
 
 
         # add normal map
