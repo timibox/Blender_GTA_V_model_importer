@@ -264,7 +264,7 @@ def importMesh(filepath, shaders, import_armature, skinned=False, create_materia
                 skinned_mesh = False
                 print("no skeleton file or armature found for: {0}".format(filepath))
 
-        if not mesh.validate():
+        if not mesh.validate(verbose=True):
             VertexDeclaration = geometry["VertexDeclaration"]
             Obj = bpy.data.objects.new(name, mesh)
             setVertexAttributes(Obj, mesh, geometry["members"][1]["vertices"], VertexDeclaration, skinned_mesh)
@@ -276,6 +276,8 @@ def importMesh(filepath, shaders, import_armature, skinned=False, create_materia
                 # Assign material to object
                 mat = getMaterial(shaders, shader_index, base_name, create_materials, **kwargs)
                 Obj.data.materials.append(mat)
+        else:
+            print("mesh validation failed!")
 
     if bpy.context.view_layer.objects.active:
         # join all submeshes
