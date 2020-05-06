@@ -277,7 +277,7 @@ def importMesh(filepath, shaders, import_armature, skinned=False, create_materia
                 mat = getMaterial(shaders, shader_index, base_name, create_materials, **kwargs)
                 Obj.data.materials.append(mat)
         else:
-            print("mesh validation failed!")
+            print('mesh validation failed for: "{0}"'.format(name))
 
     if bpy.context.view_layer.objects.active:
         # join all submeshes
