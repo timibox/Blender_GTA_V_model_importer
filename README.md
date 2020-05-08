@@ -18,4 +18,4 @@ import GTA V models to Blender
 ![image Info](./images/component_peds.png "Screenshot")
 
 #### Video:
-https://youtu.be/3bzGU39B5Lw
+https://youtu.be/kGUjDyvhtYw
