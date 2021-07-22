@@ -21,6 +21,7 @@ class GTA_Parser:
         def findMember(parent, name):
             for key, value in parent.items():
                 if key == name:
+                    if value 
                     return value
             for member in parent["members"]:
                 if member["name"] == name:
