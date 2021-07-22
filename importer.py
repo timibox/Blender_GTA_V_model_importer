@@ -365,6 +365,8 @@ def loadODR(filepath, import_armature, **kwargs):
 
     # check for odr skeleton
     if skel != "null" and import_armature != "no" and not skeleton:
+        if not isinstance(skel, str):
+            skel = " ".join(skel)
         kwargs["odr_skeleton_path"] = os.path.join(kwargs["folder"], *skel.split("\\"))
         if os.path.exists(kwargs["odr_skeleton_path"]):
             if import_armature == "create" or not findArmature(kwargs["odr_skeleton_path"]):
