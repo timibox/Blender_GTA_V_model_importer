@@ -88,7 +88,7 @@ def getMaterial(shaders, shader_index, mesh_name, create_materials, **kwargs):
                 print('sampler not found! "{0}"'.format(path_variants))
                 return None
         else:
-            print("no samplte to assign!")
+            print("no sampler to assign!")
 
     # Get material
     mat_name = kwargs["name"]+ "_" + mesh_name + str(shader_index)
@@ -255,8 +255,13 @@ def importMesh(filepath, shaders, import_armature, skinned=False, create_materia
         mesh.from_pydata(verts, (), faces)
 
         # find skelton
-        if skinned_mesh and not skeleton and "odd_root" in kwargs:
-            skel_file = find_in_folder(kwargs["odd_root"], extension=".skel")
+        root = None
+        if "odd_root" in kwargs:
+            root = kwargs["odd_root"]
+        elif "odr_root" in kwargs:
+            root = kwargs["odr_root"]
+        if skinned_mesh and not skeleton and root:
+            skel_file = find_in_folder(root, extension=".skel")
             if skel_file:
                 if import_armature == "create" or not findArmature(skel_file):
                     loadSkeleton(skel_file, **kwargs)
@@ -379,7 +384,10 @@ def loadODR(filepath, import_armature, **kwargs):
     LODs = []
     match = False
     if not "texture_folder" in kwargs:
-        kwargs["texture_folder"] = os.path.join(kwargs["odr_root"], kwargs["odr_name"])
+        p1 = os.path.join(kwargs["odr_root"], kwargs["odr_name"])
+        if os.path.exists(p1):
+            kwargs["texture_folder"] = p1
+
 
     for mesh in lodgroup["members"]:
         for key, value in mesh.items():
