@@ -2,7 +2,7 @@
 import GTA V models to Blender
 
 ## Mesh import:
-* UV coordinatis
+* UV coordinates
 * bone weights
 * custom normals
 * armature
