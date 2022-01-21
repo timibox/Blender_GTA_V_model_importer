@@ -18,7 +18,7 @@ vertexStructures = {
     "S12D0183F": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "uv2": 7, "undef2": 8},
     "SD7D22350": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6, "undef2": 7},
     "SBED48839": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "undef1": 5, "uv": 6},
-    "NC794193B": {"pos": 0, "normal": 1, "color": 2, "bone_indices": 3, "uv": 4, "uv2": 5, "undef1": 5},
+    "NC794193B": {"pos": 0, "normal": 1, "color": 2, "bone_indices": 3, "uv": 4, "uv2": 5, "undef1": 6},
     "S1E9F420D": {"pos": 0, "weights": 1, "bone_indices": 2, "normal": 3, "color": 4, "uv": 5}
 
 }
